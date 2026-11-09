@@ -37,11 +37,10 @@ func _run(scene: Node) -> void:
 		claw.busy = true
 		claw._reticle.visible = true
 		claw._reticle.global_position = crowd.target.global_position
-		claw._reticle.modulate = Color(1, 1, 0.4, 0.95)
 		await _shot(out + "shot-gameplay-final.png")
 		claw.busy = false
 		claw._reticle.visible = false
-		await claw._drop_at(crowd.target.global_position)
+		await claw._drop_at(Vector2(crowd.target.position.x, crowd.target.position.z))
 		# wait for game manager flow
 		var guard := 0
 		while gm._busy_flow and guard < 200:
@@ -62,7 +61,7 @@ func _run(scene: Node) -> void:
 			miss_npc = n
 			break
 	if miss_npc:
-		await claw._drop_at(miss_npc.global_position)
+		await claw._drop_at(Vector2(miss_npc.position.x, miss_npc.position.z))
 		var g2 := 0
 		while gm._busy_flow and g2 < 200:
 			await process_frame

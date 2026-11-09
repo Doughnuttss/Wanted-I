@@ -12,6 +12,7 @@ var max_lives: int = 3
 
 var _level_label: Label
 var _captures_label: Label
+var _timer_label: Label
 var _hearts: Array[Label] = []
 
 func _ready() -> void:
@@ -40,7 +41,16 @@ func reset_for_level(new_level: int, new_quota: int) -> void:
 	quota = new_quota
 	captures = 0
 	lives = max_lives
+	set_escape_time(-1.0)
 	refresh()
+
+func set_escape_time(seconds: float) -> void:
+	if _timer_label == null:
+		return
+	if seconds < 0.0:
+		_timer_label.text = "TIME --"
+		return
+	_timer_label.text = "TIME %d" % ceili(seconds)
 
 func refresh() -> void:
 	if _level_label:
@@ -84,7 +94,7 @@ func _build() -> void:
 	_captures_label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
 	cap_panel.add_child(_captures_label)
 
-	var lives_panel := _panel(Vector2(200, 64))
+	var lives_panel := _panel(Vector2(200, 108))
 	lives_panel.name = "LivesPanel"
 	stack.add_child(lives_panel)
 
@@ -108,6 +118,17 @@ func _build() -> void:
 		heart.add_theme_color_override("font_color", Color(0.92, 0.18, 0.22))
 		hearts_row.add_child(heart)
 		_hearts.append(heart)
+
+	_timer_label = Label.new()
+	_timer_label.name = "TimerLabel"
+	_timer_label.text = "TIME --"
+	_timer_label.position = Vector2(12, 68)
+	_timer_label.size = Vector2(170, 28)
+	_timer_label.add_theme_font_size_override("font_size", 22)
+	_timer_label.add_theme_color_override("font_color", Color(0.95, 0.35, 0.28))
+	_timer_label.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.06))
+	_timer_label.add_theme_constant_override("outline_size", 4)
+	lives_panel.add_child(_timer_label)
 
 func _panel(size: Vector2) -> Panel:
 	var p := Panel.new()

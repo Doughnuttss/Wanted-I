@@ -7,18 +7,13 @@
 [ext_resource type="Script" path="res://scripts/crowd_manager.gd" id="5_crowd"]
 [ext_resource type="Script" path="res://scripts/claw.gd" id="6_claw"]
 
-[node name="Main" type="Node2D"]
+[node name="Main" type="Node3D"]
 script = ExtResource("1_arena")
 
-[node name="Camera2D" type="Camera2D" parent="."]
-position = Vector2(640, 360)
-
-[node name="Crowd" type="Node2D" parent="."]
-y_sort_enabled = true
-z_index = 10
+[node name="Crowd" type="Node3D" parent="."]
 script = ExtResource("5_crowd")
 
-[node name="Claw" type="Node2D" parent="."]
+[node name="Claw" type="Node3D" parent="."]
 script = ExtResource("6_claw")
 
 [node name="HUD" type="CanvasLayer" parent="."]
