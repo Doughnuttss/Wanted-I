@@ -1,0 +1,31 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/arena.gd" id="1_arena"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="2_hud"]
+[ext_resource type="Script" path="res://scripts/wanted_poster.gd" id="3_poster"]
+[ext_resource type="Script" path="res://scripts/game_manager.gd" id="4_gm"]
+[ext_resource type="Script" path="res://scripts/crowd_manager.gd" id="5_crowd"]
+[ext_resource type="Script" path="res://scripts/claw.gd" id="6_claw"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_arena")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(640, 360)
+
+[node name="Crowd" type="Node2D" parent="."]
+y_sort_enabled = true
+z_index = 10
+script = ExtResource("5_crowd")
+
+[node name="Claw" type="Node2D" parent="."]
+script = ExtResource("6_claw")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("2_hud")
+
+[node name="WantedPoster" type="CanvasLayer" parent="."]
+script = ExtResource("3_poster")
+
+[node name="GameManager" type="Node" parent="."]
+script = ExtResource("4_gm")

@@ -1,0 +1,205 @@
+extends Node
+## GameManager: LEVEL_INTRO → POSTER_REVEAL → ACTIVE_HUNT → CAPTURE_RESOLVE → LEVEL_CLEAR / GAME_OVER
+
+enum State { LEVEL_INTRO, POSTER_REVEAL, ACTIVE_HUNT, CAPTURE_RESOLVE, LEVEL_CLEAR, GAME_OVER }
+
+@export var auto_start: bool = true
+@export var start_level: int = 1
+
+var state: State = State.LEVEL_INTRO
+var level: int = 1
+var hud: CanvasLayer
+var poster: CanvasLayer
+var crowd: Node2D
+var claw: Node2D
+var arena: Node2D
+var _banner: Label
+var _busy_flow: bool = false
+
+func _ready() -> void:
+	var main := get_parent()
+	arena = main
+	hud = main.get_node("HUD")
+	poster = main.get_node("WantedPoster")
+	crowd = main.get_node("Crowd")
+	claw = main.get_node("Claw")
+	claw.bind_crowd(crowd)
+	claw.capture_resolved.connect(_on_capture_resolved)
+	poster.reveal_finished.connect(_on_reveal_finished)
+	poster.escape_timeout.connect(_on_escape_timeout)
+	_build_banner()
+	if auto_start:
+		call_deferred("begin_run")
+
+func _unhandled_input(event: InputEvent) -> void:
+	if state != State.GAME_OVER:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		_retry_level()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo:
+		_retry_level()
+		get_viewport().set_input_as_handled()
+
+func begin_run() -> void:
+	level = start_level
+	await start_level_flow()
+
+func start_level_flow() -> void:
+	_busy_flow = true
+	state = State.LEVEL_INTRO
+	_hide_banner()
+	claw.set_enabled(false)
+	var cfg := DifficultyTables.for_level(level)
+	hud.reset_for_level(level, int(cfg["quota"]))
+	poster.reset_title()
+	poster.hide_poster()
+	var plaza: Rect2 = _plaza()
+	crowd.spawn_level(cfg, plaza)
+	_apply_poster_traits()
+	await get_tree().create_timer(0.35).timeout
+	state = State.POSTER_REVEAL
+	_busy_flow = false
+	await poster.play_reveal(float(cfg["escape_s"]))
+
+func _on_reveal_finished() -> void:
+	if state == State.GAME_OVER:
+		return
+	state = State.ACTIVE_HUNT
+	claw.set_enabled(true)
+
+func _on_escape_timeout() -> void:
+	if state != State.ACTIVE_HUNT or _busy_flow:
+		return
+	_busy_flow = true
+	state = State.CAPTURE_RESOLVE
+	claw.set_enabled(false)
+	poster.hunting = false
+	poster.stamp_escaped()
+	if crowd.target and is_instance_valid(crowd.target):
+		crowd.target.sprint_to_exit()
+	hud.set_lives(hud.lives - 1)
+	await get_tree().create_timer(0.9).timeout
+	if hud.lives <= 0:
+		_enter_game_over()
+		_busy_flow = false
+		return
+	await _next_wanted()
+	_busy_flow = false
+
+func _on_capture_resolved(hit_target: bool, npc: CrowdNPC) -> void:
+	if state != State.ACTIVE_HUNT or _busy_flow:
+		return
+	_busy_flow = true
+	state = State.CAPTURE_RESOLVE
+	claw.set_enabled(false)
+	poster.hunting = false
+	if hit_target and npc and is_instance_valid(npc):
+		await get_tree().create_timer(0.05).timeout
+		crowd.remove_npc(npc)
+		await npc.apply_hit_yank()
+		crowd.scatter()
+		hud.set_captures(hud.captures + 1)
+		await get_tree().create_timer(0.3).timeout
+		if hud.captures >= hud.quota:
+			await _level_clear()
+		else:
+			await _next_wanted()
+	elif npc != null and is_instance_valid(npc):
+		await npc.apply_false_alarm()
+		crowd.scatter(npc)
+		hud.set_lives(hud.lives - 1)
+		await get_tree().create_timer(0.25).timeout
+		if hud.lives <= 0:
+			_enter_game_over()
+		else:
+			state = State.ACTIVE_HUNT
+			poster.hunting = true
+			claw.set_enabled(true)
+	else:
+		await get_tree().create_timer(0.12).timeout
+		state = State.ACTIVE_HUNT
+		poster.hunting = true
+		claw.set_enabled(true)
+	_busy_flow = false
+
+func _level_clear() -> void:
+	state = State.LEVEL_CLEAR
+	claw.set_enabled(false)
+	poster.hunting = false
+	poster.hide_poster()
+	_show_banner("LEVEL CLEAR!", Color(0.95, 0.9, 0.3))
+	await get_tree().create_timer(1.0).timeout
+	level += 1
+	_hide_banner()
+	await start_level_flow()
+
+func _next_wanted() -> void:
+	var cfg := DifficultyTables.for_level(level)
+	var plaza: Rect2 = _plaza()
+	# Keep captures/lives; refresh crowd + poster
+	var saved_captures: int = hud.captures
+	var saved_lives: int = hud.lives
+	crowd.spawn_level(cfg, plaza)
+	hud.set_captures(saved_captures, int(cfg["quota"]))
+	hud.set_lives(saved_lives)
+	poster.reset_title()
+	_apply_poster_traits()
+	state = State.POSTER_REVEAL
+	await poster.play_reveal(float(cfg["escape_s"]))
+
+func _enter_game_over() -> void:
+	state = State.GAME_OVER
+	claw.set_enabled(false)
+	poster.hunting = false
+	_show_banner("GAME OVER — click to RETRY LEVEL", Color(1.0, 0.35, 0.3))
+
+func _retry_level() -> void:
+	if state != State.GAME_OVER:
+		return
+	_hide_banner()
+	poster.reset_title()
+	# Retry same level, restore lives
+	call_deferred("_retry_deferred")
+
+func _retry_deferred() -> void:
+	await start_level_flow()
+
+func _apply_poster_traits() -> void:
+	if poster.has_method("apply_target_traits"):
+		var clothing := Color(0.3, 0.5, 0.8)
+		if crowd.target and is_instance_valid(crowd.target):
+			clothing = crowd.target.clothing
+		poster.apply_target_traits(crowd.target_traits, clothing)
+
+func _plaza() -> Rect2:
+	if arena.has_method("get_plaza_rect"):
+		return arena.get_plaza_rect()
+	return Rect2(280, 120, 720, 480)
+
+func _build_banner() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "BannerLayer"
+	layer.layer = 60
+	add_child(layer)
+	_banner = Label.new()
+	_banner.name = "Banner"
+	_banner.visible = false
+	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_banner.set_anchors_preset(Control.PRESET_CENTER)
+	_banner.position = Vector2(140, 300)
+	_banner.size = Vector2(1000, 80)
+	_banner.add_theme_font_size_override("font_size", 42)
+	_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_banner.add_theme_constant_override("outline_size", 8)
+	layer.add_child(_banner)
+
+func _show_banner(text: String, color: Color) -> void:
+	_banner.text = text
+	_banner.add_theme_color_override("font_color", color)
+	_banner.visible = true
+
+func _hide_banner() -> void:
+	if _banner:
+		_banner.visible = false
