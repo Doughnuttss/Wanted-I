@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Top-left HUD: LEVEL, CAPTURES Y/Z, LIVES hearts.
+## Top-left HUD: LEVEL, CAPTURES Y/Z, LIVES hearts, escape progress bar.
 
 signal lives_changed(lives: int)
 signal captures_changed(current: int, quota: int)
@@ -12,7 +12,9 @@ var max_lives: int = 3
 
 var _level_label: Label
 var _captures_label: Label
-var _timer_label: Label
+var _escape_panel: Panel
+var _escape_track: ColorRect
+var _escape_fill: ColorRect
 var _hearts: Array[Label] = []
 
 func _ready() -> void:
@@ -44,13 +46,22 @@ func reset_for_level(new_level: int, new_quota: int) -> void:
 	set_escape_time(-1.0)
 	refresh()
 
-func set_escape_time(seconds: float) -> void:
-	if _timer_label == null:
+func set_escape_time(seconds: float, duration: float = -1.0) -> void:
+	if _escape_fill == null or _escape_panel == null:
 		return
-	if seconds < 0.0:
-		_timer_label.text = "TIME --"
+	if seconds < 0.0 or duration <= 0.0:
+		_escape_panel.visible = false
+		_escape_fill.size.x = 0.0
 		return
-	_timer_label.text = "TIME %d" % ceili(seconds)
+	_escape_panel.visible = true
+	var ratio := clampf(seconds / duration, 0.0, 1.0)
+	_escape_fill.size = Vector2(_escape_track.size.x * ratio, _escape_track.size.y)
+	if ratio < 0.25:
+		_escape_fill.color = Color(0.92, 0.16, 0.14)
+	elif ratio < 0.55:
+		_escape_fill.color = Color(0.95, 0.62, 0.12)
+	else:
+		_escape_fill.color = Color(0.28, 0.82, 0.36)
 
 func refresh() -> void:
 	if _level_label:
@@ -94,7 +105,7 @@ func _build() -> void:
 	_captures_label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
 	cap_panel.add_child(_captures_label)
 
-	var lives_panel := _panel(Vector2(200, 108))
+	var lives_panel := _panel(Vector2(220, 74))
 	lives_panel.name = "LivesPanel"
 	stack.add_child(lives_panel)
 
@@ -119,16 +130,33 @@ func _build() -> void:
 		hearts_row.add_child(heart)
 		_hearts.append(heart)
 
-	_timer_label = Label.new()
-	_timer_label.name = "TimerLabel"
-	_timer_label.text = "TIME --"
-	_timer_label.position = Vector2(12, 68)
-	_timer_label.size = Vector2(170, 28)
-	_timer_label.add_theme_font_size_override("font_size", 22)
-	_timer_label.add_theme_color_override("font_color", Color(0.95, 0.35, 0.28))
-	_timer_label.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.06))
-	_timer_label.add_theme_constant_override("outline_size", 4)
-	lives_panel.add_child(_timer_label)
+	_escape_panel = _panel(Vector2(220, 48))
+	_escape_panel.name = "EscapeBar"
+	_escape_panel.visible = false
+	stack.add_child(_escape_panel)
+
+	var escape_title := Label.new()
+	escape_title.name = "EscapeCaption"
+	escape_title.text = "ESCAPE"
+	escape_title.position = Vector2(10, 2)
+	escape_title.add_theme_font_size_override("font_size", 13)
+	escape_title.add_theme_color_override("font_color", Color(0.9, 0.9, 0.92))
+	_escape_panel.add_child(escape_title)
+
+	_escape_track = ColorRect.new()
+	_escape_track.name = "EscapeTrack"
+	_escape_track.position = Vector2(10, 24)
+	_escape_track.size = Vector2(200, 16)
+	_escape_track.color = Color(0.16, 0.16, 0.18, 1)
+	_escape_panel.add_child(_escape_track)
+
+	_escape_fill = ColorRect.new()
+	_escape_fill.name = "EscapeFill"
+	_escape_fill.position = Vector2.ZERO
+	_escape_fill.size = Vector2(200, 16)
+	_escape_fill.color = Color(0.28, 0.82, 0.36)
+	_escape_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_escape_track.add_child(_escape_fill)
 
 func _panel(size: Vector2) -> Panel:
 	var p := Panel.new()
