@@ -43,11 +43,11 @@ func _run(scene: Node) -> void:
 		await claw._drop_at(Vector2(crowd.target.position.x, crowd.target.position.z))
 		# wait for game manager flow
 		var guard := 0
-		while gm._busy_flow and guard < 200:
+		while gm._busy_flow and guard < 900:
 			await process_frame
 			guard += 1
 		await create_timer(0.2).timeout
-		print("AFTER_CAPTURE state=", gm.state, " captures=", hud.captures)
+		print("AFTER_CAPTURE state=", gm.state, " captures=", hud.captures, " busy=", gm._busy_flow, " guard=", guard)
 
 	# Force false alarms to game over path
 	hud.set_lives(1)
@@ -63,7 +63,7 @@ func _run(scene: Node) -> void:
 	if miss_npc:
 		await claw._drop_at(Vector2(miss_npc.position.x, miss_npc.position.z))
 		var g2 := 0
-		while gm._busy_flow and g2 < 200:
+		while gm._busy_flow and g2 < 900:
 			await process_frame
 			g2 += 1
 		await create_timer(0.3).timeout
@@ -79,7 +79,7 @@ func _run(scene: Node) -> void:
 		# manually fire escape
 		gm._on_escape_timeout()
 		var g3 := 0
-		while gm._busy_flow and g3 < 200:
+		while gm._busy_flow and g3 < 900:
 			await process_frame
 			g3 += 1
 		await create_timer(1.2).timeout

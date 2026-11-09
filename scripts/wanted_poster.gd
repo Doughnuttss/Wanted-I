@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Wanted poster: center slam → shrink to top-right + escape timer ring.
+## Wanted poster: center slam, then top-right only. Escape time lives on the HUD bar.
 
 signal reveal_finished
 signal escape_timeout
@@ -11,7 +11,7 @@ const SHRINK_DUR := 0.4
 const CENTER_SCALE := 1.35
 const PIN_SCALE := 0.55
 const CENTER_POS := Vector2(640, 360)
-const PIN_POS := Vector2(1060, 175)
+const PIN_MARGIN := 16.0
 
 var phase: Phase = Phase.HIDDEN
 var escape_duration: float = 25.0
@@ -21,12 +21,9 @@ var fast_mode: bool = false
 
 var _root: Control
 var _poster: Control
-var _ring: Control
-var _ring_draw: Node2D
 var _title: Label
 var _face: ColorRect
 var _trait_row: HBoxContainer
-var _timer_label: Label
 
 func _ready() -> void:
 	layer = 30
@@ -36,7 +33,6 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if hunting and phase == Phase.PINNED:
 		escape_remaining = maxf(0.0, escape_remaining - delta)
-		_update_ring()
 		_push_timer()
 		if escape_remaining <= 0.0:
 			hunting = false
@@ -56,10 +52,9 @@ func play_reveal(duration: float = 25.0) -> void:
 	hunting = false
 	phase = Phase.SLAM
 	_root.visible = true
-	_ring.visible = false
 	_poster.pivot_offset = _poster.size * 0.5
 	_poster.scale = Vector2(CENTER_SCALE, CENTER_SCALE)
-	_poster.position = CENTER_POS - _poster.size * 0.5 * CENTER_SCALE
+	_poster.position = CENTER_POS - _poster.size * 0.5
 	_poster.modulate = Color(1, 1, 1, 1)
 	await get_tree().create_timer(0.05 if fast_mode else SLAM_HOLD).timeout
 	if phase != Phase.SLAM:
@@ -67,15 +62,13 @@ func play_reveal(duration: float = 25.0) -> void:
 	var tw := create_tween()
 	tw.set_ease(Tween.EASE_OUT)
 	tw.set_trans(Tween.TRANS_CUBIC)
-	var pin_pos := PIN_POS - _poster.size * 0.5 * PIN_SCALE
+	var pin_pos := _pinned_position()
 	tw.tween_property(_poster, "scale", Vector2(PIN_SCALE, PIN_SCALE), 0.05 if fast_mode else SHRINK_DUR)
 	tw.parallel().tween_property(_poster, "position", pin_pos, 0.05 if fast_mode else SHRINK_DUR)
 	await tw.finished
 	phase = Phase.PINNED
-	_ring.visible = true
-	_ring.position = PIN_POS
-	_update_ring()
 	hunting = true
+	_push_timer()
 	reveal_finished.emit()
 
 
@@ -129,11 +122,13 @@ func reset_title() -> void:
 		_title.text = "SUSPECT WANTED"
 		_title.add_theme_color_override("font_color", Color(0.75, 0.12, 0.12))
 
-func _update_ring() -> void:
-	if _timer_label:
-		_timer_label.text = "%d" % ceili(escape_remaining)
-	if _ring_draw:
-		_ring_draw.queue_redraw()
+func _pinned_position() -> Vector2:
+	# Pivot is the poster center, so position is center minus half the unscaled size.
+	# Place the scaled poster in the top-right corner.
+	var vp := get_viewport().get_visible_rect().size
+	var visual := _poster.size * PIN_SCALE
+	var center := Vector2(vp.x - PIN_MARGIN - visual.x * 0.5, PIN_MARGIN + visual.y * 0.5)
+	return center - _poster.size * 0.5
 
 func _push_timer() -> void:
 	var main := get_parent()
@@ -142,7 +137,7 @@ func _push_timer() -> void:
 	var hud := main.get_node_or_null("HUD")
 	if hud and hud.has_method("set_escape_time"):
 		if hunting and phase == Phase.PINNED:
-			hud.set_escape_time(escape_remaining)
+			hud.set_escape_time(escape_remaining, escape_duration)
 		else:
 			hud.set_escape_time(-1.0)
 
@@ -238,28 +233,6 @@ func _build() -> void:
 	_add_trait_chip(Color(0.08, 0.08, 0.1))
 	_add_trait_chip(Color(0.25, 0.45, 0.85))
 
-	# Escape ring around pinned poster (drawn in world UI space at PIN_POS)
-	_ring = Control.new()
-	_ring.name = "EscapeRing"
-	_ring.size = Vector2(0, 0)
-	_ring.visible = false
-	_root.add_child(_ring)
-
-	_ring_draw = Node2D.new()
-	_ring_draw.name = "RingDraw"
-	_ring_draw.draw.connect(_on_ring_draw)
-	_ring.add_child(_ring_draw)
-
-	_timer_label = Label.new()
-	_timer_label.position = Vector2(-20, 108)
-	_timer_label.size = Vector2(36, 24)
-	_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_timer_label.add_theme_font_size_override("font_size", 18)
-	_timer_label.add_theme_color_override("font_color", Color(0.95, 0.2, 0.2))
-	_timer_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	_timer_label.add_theme_constant_override("outline_size", 4)
-	_ring.add_child(_timer_label)
-
 func _add_trait_chip(c: Color) -> void:
 	var box := ColorRect.new()
 	box.custom_minimum_size = Vector2(56, 56)
@@ -270,16 +243,3 @@ func _add_trait_chip(c: Color) -> void:
 	inner.size = Vector2(36, 36)
 	inner.color = c
 	box.add_child(inner)
-
-func _on_ring_draw() -> void:
-	var radius := 105.0
-	var ratio := 0.0
-	if escape_duration > 0.0:
-		ratio = clampf(escape_remaining / escape_duration, 0.0, 1.0)
-	# Track
-	_ring_draw.draw_arc(Vector2.ZERO, radius, 0.0, TAU, 64, Color(0.2, 0.2, 0.22, 0.55), 8.0, true)
-	# Remaining
-	var start := -PI * 0.5
-	var end := start + TAU * ratio
-	var col := Color(0.9, 0.2, 0.2) if ratio < 0.25 else Color(0.95, 0.55, 0.15)
-	_ring_draw.draw_arc(Vector2.ZERO, radius, start, end, 64, col, 8.0, true)
