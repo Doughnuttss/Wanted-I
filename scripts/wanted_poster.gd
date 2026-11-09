@@ -11,7 +11,7 @@ const SHRINK_DUR := 0.4
 const CENTER_SCALE := 1.35
 const PIN_SCALE := 0.55
 const CENTER_POS := Vector2(640, 360)
-const PIN_POS := Vector2(1145, 155)
+const PIN_POS := Vector2(1060, 175)
 
 var phase: Phase = Phase.HIDDEN
 var escape_duration: float = 25.0
@@ -37,9 +37,12 @@ func _process(delta: float) -> void:
 	if hunting and phase == Phase.PINNED:
 		escape_remaining = maxf(0.0, escape_remaining - delta)
 		_update_ring()
+		_push_timer()
 		if escape_remaining <= 0.0:
 			hunting = false
 			escape_timeout.emit()
+	else:
+		_push_timer()
 
 func hide_poster() -> void:
 	phase = Phase.HIDDEN
@@ -132,6 +135,17 @@ func _update_ring() -> void:
 	if _ring_draw:
 		_ring_draw.queue_redraw()
 
+func _push_timer() -> void:
+	var main := get_parent()
+	if main == null:
+		return
+	var hud := main.get_node_or_null("HUD")
+	if hud and hud.has_method("set_escape_time"):
+		if hunting and phase == Phase.PINNED:
+			hud.set_escape_time(escape_remaining)
+		else:
+			hud.set_escape_time(-1.0)
+
 func _build() -> void:
 	_root = Control.new()
 	_root.name = "PosterRoot"
@@ -158,10 +172,11 @@ func _build() -> void:
 
 	_title = Label.new()
 	_title.text = "SUSPECT WANTED"
-	_title.position = Vector2(10, 10)
-	_title.size = Vector2(240, 36)
+	_title.position = Vector2(8, 12)
+	_title.size = Vector2(244, 40)
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_title.add_theme_font_size_override("font_size", 22)
+	_title.clip_text = false
+	_title.add_theme_font_size_override("font_size", 18)
 	_title.add_theme_color_override("font_color", Color(0.75, 0.12, 0.12))
 	_poster.add_child(_title)
 

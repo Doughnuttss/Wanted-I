@@ -10,10 +10,12 @@ var state: State = State.LEVEL_INTRO
 var level: int = 1
 var hud: CanvasLayer
 var poster: CanvasLayer
-var crowd: Node2D
-var claw: Node2D
-var arena: Node2D
+var crowd: Node
+var claw: Node
+var arena: Node
 var _banner: Label
+var _home: Control
+var _game_over: Control
 var _busy_flow: bool = false
 
 func _ready() -> void:
@@ -28,8 +30,12 @@ func _ready() -> void:
 	poster.reveal_finished.connect(_on_reveal_finished)
 	poster.escape_timeout.connect(_on_escape_timeout)
 	_build_banner()
-	if auto_start:
-		call_deferred("begin_run")
+	_home = _build_overlay("CROWD SCAN PANIC", "Click to play", 70)
+	_game_over = _build_overlay("GAME OVER", "Click to retry level", 85)
+	_game_over.visible = false
+	_home.gui_input.connect(_on_home_input)
+	_game_over.gui_input.connect(_on_over_input)
+	_home.visible = auto_start
 
 func _unhandled_input(event: InputEvent) -> void:
 	if state != State.GAME_OVER:
@@ -42,8 +48,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func begin_run() -> void:
+	if _home:
+		_home.visible = false
 	level = start_level
 	await start_level_flow()
+
+func _on_home_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_home.visible = false
+		begin_run()
+
+func _on_over_input(event: InputEvent) -> void:
+	if state != State.GAME_OVER:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		_retry_level()
 
 func start_level_flow() -> void:
 	_busy_flow = true
@@ -152,12 +171,16 @@ func _enter_game_over() -> void:
 	state = State.GAME_OVER
 	claw.set_enabled(false)
 	poster.hunting = false
+	if _game_over:
+		_game_over.visible = true
 	_show_banner("GAME OVER — click to RETRY LEVEL", Color(1.0, 0.35, 0.3))
 
 func _retry_level() -> void:
 	if state != State.GAME_OVER:
 		return
 	_hide_banner()
+	if _game_over:
+		_game_over.visible = false
 	poster.reset_title()
 	# Retry same level, restore lives
 	call_deferred("_retry_deferred")
@@ -203,3 +226,37 @@ func _show_banner(text: String, color: Color) -> void:
 func _hide_banner() -> void:
 	if _banner:
 		_banner.visible = false
+
+func _build_overlay(title: String, subtitle: String, layer_index: int) -> Control:
+	var layer := CanvasLayer.new()
+	layer.name = title.replace(" ", "")
+	layer.layer = layer_index
+	add_child(layer)
+	var root := Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(root)
+	var dim := ColorRect.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.05, 0.06, 0.09, 0.8)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(dim)
+	var title_label := Label.new()
+	title_label.text = title
+	title_label.position = Vector2(140, 250)
+	title_label.size = Vector2(1000, 72)
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.add_theme_font_size_override("font_size", 60)
+	title_label.add_theme_color_override("font_color", Color(0.97, 0.9, 0.45))
+	title_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	title_label.add_theme_constant_override("outline_size", 10)
+	root.add_child(title_label)
+	var sub_label := Label.new()
+	sub_label.text = subtitle
+	sub_label.position = Vector2(140, 336)
+	sub_label.size = Vector2(1000, 40)
+	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub_label.add_theme_font_size_override("font_size", 28)
+	sub_label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
+	root.add_child(sub_label)
+	return root

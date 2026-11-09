@@ -1,12 +1,12 @@
-extends Node2D
+extends Node3D
 
 const NPC_SCRIPT := preload("res://scripts/npc.gd")
-## Spawns modular NPCs, picks target, builds decoys sharing 1–2 traits.
+## Spawns modular NPCs on the plaza, picks a target, builds decoys sharing 1–2 traits.
 
 signal crowd_ready(target: CrowdNPC)
 signal npc_clicked(npc: CrowdNPC)
 
-var plaza: Rect2 = Rect2(280, 120, 720, 480)
+var plaza: Rect2 = Rect2(-10.2, -10.2, 20.4, 20.4)
 var rng := RandomNumberGenerator.new()
 var target: CrowdNPC = null
 var target_traits: Dictionary = {}
@@ -14,8 +14,6 @@ var npcs: Array[CrowdNPC] = []
 
 func _ready() -> void:
 	rng.randomize()
-	y_sort_enabled = true
-	z_index = 10
 
 func clear_crowd() -> void:
 	for n in npcs:
@@ -35,28 +33,25 @@ func spawn_level(cfg: Dictionary, p_plaza: Rect2) -> void:
 	target_traits = _roll_full_traits()
 	var decoy_count := maxi(1, int(round(float(count - 1) * decoy_pct)))
 
-	# Target first
 	target = _make_npc(target_traits, false, true, speed)
 	npcs.append(target)
 
-	# Decoys share 1–2 traits
 	for i in decoy_count:
 		var dtraits := _make_decoy_traits(target_traits)
 		npcs.append(_make_npc(dtraits, true, false, speed))
 
-	# Fillers
 	while npcs.size() < count:
 		npcs.append(_make_npc(_roll_filler_traits(target_traits), false, false, speed))
 
 	crowd_ready.emit(target)
 
-func get_npc_at_point(world: Vector2, radius: float = 28.0) -> CrowdNPC:
+func get_npc_at_point(world: Vector2, radius: float = 1.15) -> CrowdNPC:
 	var best: CrowdNPC = null
 	var best_d := radius * radius
 	for n in npcs:
 		if not is_instance_valid(n):
 			continue
-		var d := n.position.distance_squared_to(world)
+		var d := Vector2(n.position.x, n.position.z).distance_squared_to(world)
 		if d <= best_d:
 			best_d = d
 			best = n
@@ -99,7 +94,6 @@ func _make_decoy_traits(base: Dictionary) -> Dictionary:
 			out[slot] = base[slot]
 		else:
 			out[slot] = TraitCatalog.random_trait_for_slot(int(slot), rng)
-			# ensure not identical full set
 			if out[slot] == base[slot]:
 				var alts := TraitCatalog.ids_for_slot(int(slot))
 				for a in alts:
@@ -110,7 +104,6 @@ func _make_decoy_traits(base: Dictionary) -> Dictionary:
 
 func _roll_filler_traits(avoid: Dictionary) -> Dictionary:
 	var out := _roll_full_traits()
-	# Avoid matching all 3
 	if out[TraitCatalog.Slot.HAT] == avoid[TraitCatalog.Slot.HAT] \
 			and out[TraitCatalog.Slot.GLASSES] == avoid[TraitCatalog.Slot.GLASSES] \
 			and out[TraitCatalog.Slot.HELD] == avoid[TraitCatalog.Slot.HELD]:
