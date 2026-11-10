@@ -1,11 +1,11 @@
 class_name CrowdBodyLibrary
 extends RefCounted
-## Placeholder humanoids. Tripo reported 0 credits, so the meshes are block rigs.
+## Neutral adult body from local AssetFurnace (Pixal3D), rigged in the gym blend.
 ## Blend: res://assets/raw/blender/character_gym.blend
 ## Glb: res://assets/generated/base_bodies.glb
 ##
-## Armature_Neutral plays Walk_Neutral. Armature_Stocky plays Idle_Stocky.
-## Each body also has the other action, plus Weight and Height shape keys.
+## One armature, Armature_Neutral. Idle_Neutral hangs the arms; Walk_Neutral swings them forward and back.
+## Height and Weight shape keys vary that same mesh. There is no second block body.
 ## Attachment empties (swap a trait by replacing that slot's children):
 ## slot_hat, slot_glasses, slot_shirt, slot_pants, slot_held, slot_shoe_L, slot_shoe_R.
 
